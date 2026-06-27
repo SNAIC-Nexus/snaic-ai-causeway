@@ -1,6 +1,7 @@
 # causeway/db.py
 import sqlite3
 from datetime import datetime
+from typing import Optional
 from causeway.config import DB_PATH
 
 
@@ -42,7 +43,7 @@ def init_db() -> None:
         conn.commit()
 
 
-def log_scrape(scraped_at: str, camera_id: str, file_path: str | None, status: str, error_msg=None) -> None:
+def log_scrape(scraped_at: str, camera_id: str, file_path: Optional[str], status: str, error_msg=None) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO scrape_log (scraped_at, camera_id, file_path, status, error_msg) VALUES (?,?,?,?,?)",
@@ -51,7 +52,7 @@ def log_scrape(scraped_at: str, camera_id: str, file_path: str | None, status: s
         conn.commit()
 
 
-def get_last_scrape_timestamp(camera_id=None) -> str | None:
+def get_last_scrape_timestamp(camera_id=None) -> Optional[str]:
     with get_connection() as conn:
         if camera_id:
             row = conn.execute(
@@ -72,6 +73,21 @@ def log_label(image_path: str, label_path: str, label_type: str, shift: str) -> 
             (image_path, label_path, label_type, shift),
         )
         conn.commit()
+
+
+def ensure_label_log_entry(image_path: str, label_path: str, label_type: str, shift: str) -> None:
+    """Insert a label_log row if none exists for (image_path, label_type)."""
+    with get_connection() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM label_log WHERE image_path=? AND label_type=? LIMIT 1",
+            (image_path, label_type),
+        ).fetchone()
+        if not exists:
+            conn.execute(
+                "INSERT INTO label_log (image_path, label_path, label_type, shift) VALUES (?,?,?,?)",
+                (image_path, label_path, label_type, shift),
+            )
+            conn.commit()
 
 
 def update_label_validation(image_path: str, label_type: str, validated: str) -> None:
