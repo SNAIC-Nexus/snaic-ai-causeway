@@ -285,6 +285,9 @@ with tab3:
     if st.session_state.get("ann_img_sel", 0) >= len(ann_images):
         st.session_state["ann_img_sel"] = 0
 
+    def _sync_sel_from_widget():
+        st.session_state["ann_img_sel"] = st.session_state["_ann_sel_widget"]
+
     nav_prev, nav_sel, nav_next = st.columns([1, 10, 1])
     with nav_prev:
         if st.button("◀", key="ann_prev"):
@@ -295,7 +298,9 @@ with tab3:
             "Image",
             range(len(ann_images)),
             format_func=lambda i: os.path.basename(ann_images[i]),
-            key="ann_img_sel",
+            index=st.session_state.get("ann_img_sel", 0),
+            key="_ann_sel_widget",
+            on_change=_sync_sel_from_widget,
             label_visibility="collapsed",
         )
     with nav_next:
@@ -338,7 +343,7 @@ with tab3:
         st.image(preview, width="stretch")
 
     with col_canvas_ctrl:
-        st.caption("🖊 Draw new box (drag a rectangle)")
+        st.caption("🖊 Click on a vehicle to place a box — adjust size via the list below")
 
         cls_names_ordered = [CLASS_NAMES[i] for i in range(4)]
         selected_cls_name = st.radio(
@@ -350,6 +355,10 @@ with tab3:
         selected_cls_id = cls_names_ordered.index(selected_cls_name)
         stroke_colour = CLASS_COLOURS[selected_cls_id]["stroke"]
 
+        # Default box half-size at display resolution (roughly one vehicle width)
+        _BOX_HW = 50  # half-width in display pixels
+        _BOX_HH = 35  # half-height in display pixels
+
         pil_bg = PILImage.open(ann_img_path).resize((DISPLAY_W, DISPLAY_H))
 
         canvas_result = st_canvas(
@@ -359,23 +368,31 @@ with tab3:
             background_image=pil_bg,
             height=DISPLAY_H,
             width=DISPLAY_W,
-            drawing_mode="rect",
+            drawing_mode="point",
+            point_display_radius=4,
             key=f"canvas_{ann_img_path}_{canvas_version}",
         )
 
-        # Detect newly drawn box
+        # Detect a click — convert point to a centred default-size rect
         if (
             canvas_result.json_data is not None
             and canvas_result.json_data.get("objects")
         ):
-            canvas_objects = canvas_result.json_data["objects"]
-            if len(canvas_objects) > 0:
-                # The canvas was just used — take the last rect as the new box
-                new_rect = canvas_objects[-1]
-                new_box = canvas_rect_to_box(new_rect, selected_cls_id, orig_w, orig_h)
+            pt = canvas_result.json_data["objects"][-1]
+            if pt.get("type") == "circle":
+                cx_px = pt.get("left", 0) + pt.get("radius", 0)
+                cy_px = pt.get("top", 0) + pt.get("radius", 0)
+                x1_n = max(0.0, (cx_px - _BOX_HW) / DISPLAY_W)
+                y1_n = max(0.0, (cy_px - _BOX_HH) / DISPLAY_H)
+                x2_n = min(1.0, (cx_px + _BOX_HW) / DISPLAY_W)
+                y2_n = min(1.0, (cy_px + _BOX_HH) / DISPLAY_H)
+                new_box = {
+                    "class_id": selected_cls_id,
+                    "x1_n": x1_n, "y1_n": y1_n,
+                    "x2_n": x2_n, "y2_n": y2_n,
+                }
                 boxes.append(new_box)
                 st.session_state[boxes_key] = boxes
-                # Reset canvas for next draw
                 st.session_state[canvas_v_key] = canvas_version + 1
                 st.rerun()
 
