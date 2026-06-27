@@ -146,7 +146,7 @@ with tab1:
             with col1:
                 st.caption("📷 Raw Image")
                 if os.path.exists(img_path):
-                    st.image(img_path, use_container_width=True)
+                    st.image(img_path, width="stretch")
                 else:
                     st.error(f"Image not found: `{img_path}`")
 
@@ -159,7 +159,7 @@ with tab1:
                     annotated = _render_vehicle_annotation(img_path, computed_label_path)
 
                 if annotated is not None:
-                    st.image(annotated, use_container_width=True)
+                    st.image(annotated, width="stretch")
                 else:
                     st.warning("Could not render annotation.")
 
@@ -238,7 +238,7 @@ with tab2:
     if logs:
         import pandas as pd
         df = pd.DataFrame(logs, columns=["Timestamp", "Camera", "File", "Status", "Error"])
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
     else:
         st.info("No scrape events logged yet.")
 
@@ -247,7 +247,7 @@ with tab2:
     if summary:
         import pandas as pd
         df = pd.DataFrame(summary, columns=["Label Type", "Split", "Count"])
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
     else:
         st.info("No dataset splits recorded yet. Run the build_dataset_split Dagster asset first.")
 
@@ -335,7 +335,7 @@ with tab3:
     with col_preview:
         st.caption("📷 Current annotations")
         preview = render_annotated_image(ann_img_path, boxes, orig_w, orig_h)
-        st.image(preview, use_container_width=True)
+        st.image(preview, width="stretch")
 
     with col_canvas_ctrl:
         st.caption("🖊 Draw new box (drag a rectangle)")
