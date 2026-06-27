@@ -104,6 +104,7 @@ def export_curated_dataset(output_dir: str) -> dict:
 
     sorted_days = sorted(by_day.keys())
     if len(sorted_days) < 2:
+        print(f"WARNING: Only {len(sorted_days)} day(s) of approved labels found. Need at least 2 to split meaningfully.")
         train_days, val_days = sorted_days, []
     else:
         train_days = sorted_days[:-1]
