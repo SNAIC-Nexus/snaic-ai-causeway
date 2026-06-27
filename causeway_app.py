@@ -338,15 +338,37 @@ with tab3:
     # --- Main layout: preview left, canvas + controls right ---
     col_preview, col_canvas_ctrl = st.columns(2)
 
+    # Reverse lookup: stroke colour → class_id
+    _COLOUR_TO_CLASS = {v["stroke"].upper(): k for k, v in CLASS_COLOURS.items()}
+
+    def _boxes_to_fabric(bxs):
+        """Convert session-state boxes to Fabric.js initial_drawing JSON."""
+        objs = []
+        for bx in bxs:
+            cid = bx["class_id"]
+            col = CLASS_COLOURS[cid]
+            objs.append({
+                "type": "rect",
+                "left": round(bx["x1_n"] * DISPLAY_W, 2),
+                "top": round(bx["y1_n"] * DISPLAY_H, 2),
+                "width": round((bx["x2_n"] - bx["x1_n"]) * DISPLAY_W, 2),
+                "height": round((bx["y2_n"] - bx["y1_n"]) * DISPLAY_H, 2),
+                "fill": col["fill"],
+                "stroke": col["stroke"],
+                "strokeWidth": 2,
+                "scaleX": 1.0,
+                "scaleY": 1.0,
+                "angle": 0,
+            })
+        return {"version": "4.4.0", "objects": objs}
+
     with col_preview:
-        st.caption("📷 Current annotations")
+        st.caption("📷 Annotated preview")
         preview = render_annotated_image(ann_img_path, boxes, orig_w, orig_h)
         st.image(preview, width="stretch")
 
     with col_canvas_ctrl:
-        st.caption("📷 Reference image")
-        st.image(ann_img_path, width="stretch")
-        st.caption("🖊 Drag to draw a rectangle around a vehicle")
+        st.caption("🖊 Draw on image — existing boxes shown, drag to add new ones")
 
         cls_names_ordered = [CLASS_NAMES[i] for i in range(4)]
         selected_cls_name = st.radio(
@@ -357,32 +379,47 @@ with tab3:
         )
         selected_cls_id = cls_names_ordered.index(selected_cls_name)
         stroke_colour = CLASS_COLOURS[selected_cls_id]["stroke"]
+        fill_colour = CLASS_COLOURS[selected_cls_id]["fill"]
 
         pil_bg = PILImage.open(ann_img_path).resize((DISPLAY_W, DISPLAY_H))
 
         canvas_result = st_canvas(
-            fill_color="rgba(0,0,0,0)",
+            fill_color=fill_colour,
             stroke_width=2,
             stroke_color=stroke_colour,
             background_image=pil_bg,
+            initial_drawing=_boxes_to_fabric(boxes),
             height=DISPLAY_H,
             width=DISPLAY_W,
             drawing_mode="rect",
             key=f"canvas_{ann_img_path}_{canvas_version}",
         )
 
-        # Detect newly drawn box
-        if (
-            canvas_result.json_data is not None
-            and canvas_result.json_data.get("objects")
-        ):
-            new_rect = canvas_result.json_data["objects"][-1]
-            if new_rect.get("type") == "rect":
-                new_box = canvas_rect_to_box(new_rect, selected_cls_id, orig_w, orig_h)
-                boxes.append(new_box)
-                st.session_state[boxes_key] = boxes
-                st.session_state[canvas_v_key] = canvas_version + 1
-                st.rerun()
+        # Sync ALL canvas rect objects → session state boxes
+        if canvas_result.json_data is not None:
+            canvas_rects = [
+                o for o in canvas_result.json_data.get("objects", [])
+                if o.get("type") == "rect"
+            ]
+            synced = []
+            for obj in canvas_rects:
+                left = obj.get("left", 0)
+                top = obj.get("top", 0)
+                w = obj.get("width", 0) * obj.get("scaleX", 1)
+                h = obj.get("height", 0) * obj.get("scaleY", 1)
+                cid = _COLOUR_TO_CLASS.get(
+                    obj.get("stroke", "").upper(), selected_cls_id
+                )
+                synced.append({
+                    "class_id": cid,
+                    "x1_n": max(0.0, left / DISPLAY_W),
+                    "y1_n": max(0.0, top / DISPLAY_H),
+                    "x2_n": min(1.0, (left + w) / DISPLAY_W),
+                    "y2_n": min(1.0, (top + h) / DISPLAY_H),
+                })
+            if synced != boxes:
+                st.session_state[boxes_key] = synced
+                boxes = synced
 
     # --- Box list for class editing and deletion ---
     st.subheader(f"Boxes ({len(boxes)})")
