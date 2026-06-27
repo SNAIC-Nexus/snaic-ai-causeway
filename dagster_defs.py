@@ -35,7 +35,7 @@ def generate_vehicle_labels():
 
 
 @asset(
-    deps=[generate_lane_labels],
+    deps=[generate_vehicle_labels],
     description="Export curated vehicle labels, fine-tune a domain-adapted vehicle detector, and output models/causeway_vehicle_v1.pt and models/causeway_vehicle_v1.npz.",
 )
 def fine_tune_vehicle_model():
@@ -52,7 +52,7 @@ def fine_tune_vehicle_model():
 
 
 @asset(
-    deps=[generate_lane_labels, generate_vehicle_labels, fine_tune_vehicle_model],
+    deps=[generate_lane_labels, generate_vehicle_labels],
     description="Split dataset by day: all days except last → train, last day → val. Writes dataset_lane.yaml and dataset_vehicle.yaml.",
 )
 def build_dataset_split():

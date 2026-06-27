@@ -19,6 +19,12 @@ OUT_NPZ      = "models/causeway_vehicle_v1.npz"
 
 
 def main():
+    import pathlib
+    if not pathlib.Path(BASE_MODEL).exists():
+        print(f"ERROR: Base model not found at {BASE_MODEL}")
+        print("Download it from https://docs.ultralytics.com or copy yolo26n.pt from the yolo26mlx package.")
+        return
+
     # --- Stage 1: Export curated dataset ---
     print("=== Stage 1: Exporting curated dataset ===")
     result = export_curated_dataset(CURATED_DIR)

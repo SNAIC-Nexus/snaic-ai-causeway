@@ -1,5 +1,8 @@
 import sys, os
+import pathlib
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+APP_PATH = pathlib.Path(__file__).parent.parent / "causeway_app.py"
 
 
 def _parse_hour_from_path(img_path: str):
@@ -33,7 +36,7 @@ def test_parses_hour_from_causeway_app():
     """Smoke-test that the function in causeway_app.py matches the expected behaviour."""
     import ast
     # Load and parse causeway_app.py to extract the _parse_hour_from_path function
-    with open("/Users/chuan/Development/PythonProjects/snaic-ai-causeway/causeway_app.py") as f:
+    with open(str(APP_PATH)) as f:
         tree = ast.parse(f.read())
 
     # Find the _parse_hour_from_path function definition
