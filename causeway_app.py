@@ -121,7 +121,7 @@ with tab1:
         rows = [r for r in rows if f"/{camera_filter}/" in r[0].replace("\\", "/")]
 
     if daytime_only:
-        rows = [r for r in rows if (lambda h: h is not None and 6 <= h < 19)(_parse_hour_from_path(r[0]))]
+        rows = [r for r in rows if (h := _parse_hour_from_path(r[0])) is not None and 6 <= h < 19]
 
     # Curation progress for vehicle labels
     if label_type_filter == "vehicle":
