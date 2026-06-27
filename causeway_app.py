@@ -282,11 +282,11 @@ with tab3:
         st.session_state["ann_img_sel"] = 0
 
     # Clamp stale value (e.g. list shrank)
-    if st.session_state.get("ann_img_sel", 0) >= len(ann_images):
+    if int(st.session_state.get("ann_img_sel", 0)) >= len(ann_images):
         st.session_state["ann_img_sel"] = 0
 
     def _sync_sel_from_widget():
-        st.session_state["ann_img_sel"] = st.session_state["_ann_sel_widget"]
+        st.session_state["ann_img_sel"] = int(st.session_state["_ann_sel_widget"])
 
     nav_prev, nav_sel, nav_next = st.columns([1, 10, 1])
     with nav_prev:
@@ -308,12 +308,12 @@ with tab3:
             st.session_state["ann_img_sel"] = min(len(ann_images) - 1, st.session_state.get("ann_img_sel", 0) + 1)
             st.rerun()
 
-    ann_img_path = ann_images[st.session_state.get("ann_img_sel", 0)]
+    ann_img_path = ann_images[int(st.session_state.get("ann_img_sel", 0))]
 
     if not os.path.exists(ann_img_path):
         st.warning(f"Image file missing: `{ann_img_path}` — skipping.")
-        if st.session_state.get("ann_img_sel", 0) < len(ann_images) - 1:
-            st.session_state["ann_img_sel"] = st.session_state.get("ann_img_sel", 0) + 1
+        if int(st.session_state.get("ann_img_sel", 0)) < len(ann_images) - 1:
+            st.session_state["ann_img_sel"] = int(st.session_state.get("ann_img_sel", 0)) + 1
             st.rerun()
         st.stop()
 
@@ -343,7 +343,7 @@ with tab3:
         st.image(preview, width="stretch")
 
     with col_canvas_ctrl:
-        st.caption("🖊 Click on a vehicle to place a box — adjust size via the list below")
+        st.caption("🖊 Drag to draw a rectangle around a vehicle")
 
         cls_names_ordered = [CLASS_NAMES[i] for i in range(4)]
         selected_cls_name = st.radio(
@@ -355,10 +355,6 @@ with tab3:
         selected_cls_id = cls_names_ordered.index(selected_cls_name)
         stroke_colour = CLASS_COLOURS[selected_cls_id]["stroke"]
 
-        # Default box half-size at display resolution (roughly one vehicle width)
-        _BOX_HW = 50  # half-width in display pixels
-        _BOX_HH = 35  # half-height in display pixels
-
         pil_bg = PILImage.open(ann_img_path).resize((DISPLAY_W, DISPLAY_H))
 
         canvas_result = st_canvas(
@@ -368,29 +364,18 @@ with tab3:
             background_image=pil_bg,
             height=DISPLAY_H,
             width=DISPLAY_W,
-            drawing_mode="point",
-            point_display_radius=4,
+            drawing_mode="rect",
             key=f"canvas_{ann_img_path}_{canvas_version}",
         )
 
-        # Detect a click — convert point to a centred default-size rect
+        # Detect newly drawn box
         if (
             canvas_result.json_data is not None
             and canvas_result.json_data.get("objects")
         ):
-            pt = canvas_result.json_data["objects"][-1]
-            if pt.get("type") == "circle":
-                cx_px = pt.get("left", 0) + pt.get("radius", 0)
-                cy_px = pt.get("top", 0) + pt.get("radius", 0)
-                x1_n = max(0.0, (cx_px - _BOX_HW) / DISPLAY_W)
-                y1_n = max(0.0, (cy_px - _BOX_HH) / DISPLAY_H)
-                x2_n = min(1.0, (cx_px + _BOX_HW) / DISPLAY_W)
-                y2_n = min(1.0, (cy_px + _BOX_HH) / DISPLAY_H)
-                new_box = {
-                    "class_id": selected_cls_id,
-                    "x1_n": x1_n, "y1_n": y1_n,
-                    "x2_n": x2_n, "y2_n": y2_n,
-                }
+            new_rect = canvas_result.json_data["objects"][-1]
+            if new_rect.get("type") == "rect":
+                new_box = canvas_rect_to_box(new_rect, selected_cls_id, orig_w, orig_h)
                 boxes.append(new_box)
                 st.session_state[boxes_key] = boxes
                 st.session_state[canvas_v_key] = canvas_version + 1
