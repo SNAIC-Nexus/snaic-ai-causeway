@@ -344,6 +344,8 @@ with tab3:
         st.image(preview, width="stretch")
 
     with col_canvas_ctrl:
+        st.caption("📷 Reference image")
+        st.image(ann_img_path, width="stretch")
         st.caption("🖊 Drag to draw a rectangle around a vehicle")
 
         cls_names_ordered = [CLASS_NAMES[i] for i in range(4)]
