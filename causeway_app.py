@@ -286,26 +286,27 @@ with tab3:
         st.session_state["ann_img_sel"] = 0
 
     def _sync_sel_from_widget():
-        st.session_state["ann_img_sel"] = int(st.session_state["_ann_sel_widget"])
+        path = st.session_state.get("_ann_sel_widget")
+        st.session_state["ann_img_sel"] = ann_images.index(path) if path in ann_images else 0
 
     nav_prev, nav_sel, nav_next = st.columns([1, 10, 1])
     with nav_prev:
         if st.button("◀", key="ann_prev"):
-            st.session_state["ann_img_sel"] = max(0, st.session_state.get("ann_img_sel", 0) - 1)
+            st.session_state["ann_img_sel"] = max(0, int(st.session_state.get("ann_img_sel", 0)) - 1)
             st.rerun()
     with nav_sel:
         st.selectbox(
             "Image",
-            range(len(ann_images)),
-            format_func=lambda i: os.path.basename(ann_images[i]),
-            index=st.session_state.get("ann_img_sel", 0),
+            ann_images,
+            format_func=os.path.basename,
+            index=int(st.session_state.get("ann_img_sel", 0)),
             key="_ann_sel_widget",
             on_change=_sync_sel_from_widget,
             label_visibility="collapsed",
         )
     with nav_next:
         if st.button("▶", key="ann_next"):
-            st.session_state["ann_img_sel"] = min(len(ann_images) - 1, st.session_state.get("ann_img_sel", 0) + 1)
+            st.session_state["ann_img_sel"] = min(len(ann_images) - 1, int(st.session_state.get("ann_img_sel", 0)) + 1)
             st.rerun()
 
     ann_img_path = ann_images[int(st.session_state.get("ann_img_sel", 0))]
