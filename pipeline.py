@@ -13,14 +13,16 @@ from yolo26mlx.converters import convert_model  # Built-in weights converter
 weights_dir = "models"
 os.makedirs(weights_dir, exist_ok=True)
 
-pt_path = os.path.join(weights_dir, "yolov8n.pt")
-mlx_path = os.path.join(weights_dir, "yolov8n.npz")
+pt_path  = os.path.join(weights_dir, "causeway_vehicle_v1.pt")
+mlx_path = os.path.join(weights_dir, "causeway_vehicle_v1.npz")
 
-# 1. Initialize and convert the model to native MLX format safely
-# This step runs once, creates 'yolov8n.npz', and bypasses PyTorch loops permanently!
 if not os.path.exists(mlx_path):
-    print("M-Series Mac Optimized: Converting PyTorch weights to native MLX format...")
-    # Downloads the .pt model automatically if it doesn't exist locally and converts it
+    if not os.path.exists(pt_path):
+        raise FileNotFoundError(
+            f"Neither {mlx_path} nor {pt_path} found. "
+            "Run train.py to generate the fine-tuned model first."
+        )
+    print("Converting fine-tuned weights to native MLX format...")
     convert_model(pt_path, output_path=mlx_path, verify=True)
 
 # 2. Load the native MLX model variant for local high-speed inference

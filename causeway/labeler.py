@@ -118,13 +118,21 @@ def generate_lane_labels(base_images_dir: str = IMAGE_BASE_DIR) -> int:
     return processed
 
 
-def generate_vehicle_labels(base_images_dir: str = IMAGE_BASE_DIR) -> int:
-    from ultralytics import YOLO
+def generate_vehicle_labels(
+    base_images_dir: str = IMAGE_BASE_DIR,
+    model_path: str = "yolov8x.pt",
+) -> int:
     init_db()
 
-    model = YOLO("yolov8x.pt")
     image_paths = glob.glob(os.path.join(base_images_dir, "**", "*.jpg"), recursive=True)
     processed = 0
+
+    if not image_paths:
+        print("Vehicle labeling complete: 0 new labels generated.")
+        return 0
+
+    from ultralytics import YOLO
+    model = YOLO(model_path)
 
     for img_path in image_paths:
         rel_path = os.path.relpath(img_path, base_images_dir)

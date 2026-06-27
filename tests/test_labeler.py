@@ -68,6 +68,29 @@ def test_generate_lane_labels_creates_txt_files(tmp_path, monkeypatch):
     assert len(content) == 2  # 2701 afternoon has 2 lanes
     assert content[0].startswith("0 ") or content[0].startswith("1 ")
 
+def test_generate_vehicle_labels_accepts_model_path_param(tmp_path, monkeypatch):
+    """generate_vehicle_labels must accept a model_path kwarg and pass it to YOLO()."""
+    import causeway.labeler as labeler_mod
+    from causeway import db as db_mod
+
+    # Patch DB path
+    test_db = str(tmp_path / "test.db")
+    monkeypatch.setattr(db_mod, "DB_PATH", test_db)
+    db_mod.init_db()
+
+    # Empty image dir — no images to process, so YOLO is never actually loaded
+    base = tmp_path / "traffic_images"
+    base.mkdir()
+    monkeypatch.setattr(labeler_mod, "IMAGE_BASE_DIR", str(base))
+
+    # Should accept model_path without error (no images → YOLO never instantiated)
+    count = labeler_mod.generate_vehicle_labels(
+        base_images_dir=str(base),
+        model_path="models/causeway_vehicle_v1.pt",
+    )
+    assert count == 0  # empty image dir, nothing processed
+
+
 def test_generate_lane_labels_skips_already_labeled(tmp_path, monkeypatch):
     import causeway.labeler as labeler_mod
 

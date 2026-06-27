@@ -31,7 +31,26 @@ def generate_vehicle_labels():
 
 
 @asset(
-    deps=[generate_lane_labels, generate_vehicle_labels],
+    deps=[generate_lane_labels],
+    description="Export curated vehicle labels and fine-tune yolo26n.pt. Outputs models/causeway_vehicle_v1.pt and models/causeway_vehicle_v1.npz.",
+)
+def fine_tune_vehicle_model():
+    import subprocess, sys
+    result = subprocess.run(
+        [sys.executable, "train.py"],
+        capture_output=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("train.py failed — check output above for details.")
+    import os
+    pt_exists = os.path.exists("models/causeway_vehicle_v1.pt")
+    npz_exists = os.path.exists("models/causeway_vehicle_v1.npz")
+    return {"pt": pt_exists, "npz": npz_exists}
+
+
+@asset(
+    deps=[generate_lane_labels, generate_vehicle_labels, fine_tune_vehicle_model],
     description="Split dataset by day: all days except last → train, last day → val. Writes dataset_lane.yaml and dataset_vehicle.yaml.",
 )
 def build_dataset_split():
@@ -57,6 +76,7 @@ defs = Definitions(
         scrape_images,
         generate_lane_labels,
         generate_vehicle_labels,
+        fine_tune_vehicle_model,
         build_dataset_split,
     ],
     schedules=[scrape_schedule],
