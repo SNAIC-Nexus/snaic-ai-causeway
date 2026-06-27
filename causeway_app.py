@@ -275,39 +275,40 @@ with tab3:
         st.info("No images found for the selected camera and date.")
         st.stop()
 
-    # --- Image navigator ---
-    if "ann_img_idx" not in st.session_state:
-        st.session_state["ann_img_idx"] = 0
-    st.session_state["ann_img_idx"] = min(st.session_state["ann_img_idx"], len(ann_images) - 1)
+    # Reset navigator when camera or date changes
+    _cam_date_key = f"ann_cam_date__{ann_camera}__{ann_date}"
+    if st.session_state.get("_ann_cam_date_key") != _cam_date_key:
+        st.session_state["_ann_cam_date_key"] = _cam_date_key
+        st.session_state["ann_img_sel"] = 0
+
+    # Clamp stale value (e.g. list shrank)
+    if st.session_state.get("ann_img_sel", 0) >= len(ann_images):
+        st.session_state["ann_img_sel"] = 0
 
     nav_prev, nav_sel, nav_next = st.columns([1, 10, 1])
     with nav_prev:
-        if st.button("◀", key="ann_prev") and st.session_state["ann_img_idx"] > 0:
-            st.session_state["ann_img_idx"] -= 1
+        if st.button("◀", key="ann_prev"):
+            st.session_state["ann_img_sel"] = max(0, st.session_state.get("ann_img_sel", 0) - 1)
             st.rerun()
     with nav_sel:
-        chosen_idx = st.selectbox(
+        st.selectbox(
             "Image",
             range(len(ann_images)),
             format_func=lambda i: os.path.basename(ann_images[i]),
-            index=st.session_state["ann_img_idx"],
             key="ann_img_sel",
             label_visibility="collapsed",
         )
-        if chosen_idx != st.session_state["ann_img_idx"]:
-            st.session_state["ann_img_idx"] = chosen_idx
-            st.rerun()
     with nav_next:
-        if st.button("▶", key="ann_next") and st.session_state["ann_img_idx"] < len(ann_images) - 1:
-            st.session_state["ann_img_idx"] += 1
+        if st.button("▶", key="ann_next"):
+            st.session_state["ann_img_sel"] = min(len(ann_images) - 1, st.session_state.get("ann_img_sel", 0) + 1)
             st.rerun()
 
-    ann_img_path = ann_images[st.session_state["ann_img_idx"]]
+    ann_img_path = ann_images[st.session_state.get("ann_img_sel", 0)]
 
     if not os.path.exists(ann_img_path):
         st.warning(f"Image file missing: `{ann_img_path}` — skipping.")
-        if st.session_state["ann_img_idx"] < len(ann_images) - 1:
-            st.session_state["ann_img_idx"] += 1
+        if st.session_state.get("ann_img_sel", 0) < len(ann_images) - 1:
+            st.session_state["ann_img_sel"] = st.session_state.get("ann_img_sel", 0) + 1
             st.rerun()
         st.stop()
 
@@ -424,14 +425,15 @@ with tab3:
             label_path = _get_label_path(ann_img_path, "vehicle")
             os.makedirs(os.path.dirname(label_path), exist_ok=True)
             with open(label_path, "w") as f:
-                f.write("\n".join(boxes_to_yolo_lines(boxes)))
-            ensure_label_log_entry(ann_img_path, label_path, "vehicle", "")
+                yolo_lines = boxes_to_yolo_lines(boxes)
+                f.write("\n".join(yolo_lines) + ("\n" if yolo_lines else ""))
+            ensure_label_log_entry(ann_img_path, label_path, "vehicle", "manual")
             update_label_validation(ann_img_path, "vehicle", "approved")
             # Clear session state for this image
             for k in [boxes_key, dims_key, canvas_v_key]:
                 st.session_state.pop(k, None)
             # Advance to next image
-            if st.session_state["ann_img_idx"] < len(ann_images) - 1:
-                st.session_state["ann_img_idx"] += 1
+            current_idx = st.session_state.get("ann_img_sel", 0)
+            st.session_state["ann_img_sel"] = min(len(ann_images) - 1, current_idx + 1)
             st.success("Saved and marked approved.")
             st.rerun()

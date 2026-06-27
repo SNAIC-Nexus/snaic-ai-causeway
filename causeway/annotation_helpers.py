@@ -93,6 +93,12 @@ def canvas_rect_to_box(rect: dict, class_id: int, orig_w: int, orig_h: int,
     x2_n = (left + width) / (orig_w * sx)
     y2_n = (top + height) / (orig_h * sy)
 
+    # Swap if inverted (right-to-left or bottom-to-top drawing)
+    if x1_n > x2_n:
+        x1_n, x2_n = x2_n, x1_n
+    if y1_n > y2_n:
+        y1_n, y2_n = y2_n, y1_n
+
     return {
         "class_id": class_id,
         "x1_n": max(0.0, min(1.0, x1_n)),
