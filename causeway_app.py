@@ -139,7 +139,7 @@ with tab1:
             with col1:
                 st.caption("📷 Raw Image")
                 if os.path.exists(img_path):
-                    st.image(img_path, width=None)
+                    st.image(img_path, use_container_width=True)
                 else:
                     st.error(f"Image not found: `{img_path}`")
 
@@ -152,7 +152,7 @@ with tab1:
                     annotated = _render_vehicle_annotation(img_path, computed_label_path)
 
                 if annotated is not None:
-                    st.image(annotated, width=None)
+                    st.image(annotated, use_container_width=True)
                 else:
                     st.warning("Could not render annotation.")
 
