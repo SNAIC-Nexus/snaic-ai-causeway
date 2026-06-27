@@ -11,11 +11,13 @@ import os
 import shutil
 from causeway.dataset import export_curated_dataset
 
-CURATED_DIR = "dataset/curated"
+_HERE        = os.path.dirname(os.path.abspath(__file__))
+CURATED_DIR  = "dataset/curated"
 BASE_MODEL   = "models/yolo26n.pt"
 YAML_PATH    = "dataset_vehicle_curated.yaml"
 OUT_PT       = "models/causeway_vehicle_v1.pt"
 OUT_NPZ      = "models/causeway_vehicle_v1.npz"
+RUNS_DIR     = os.path.join(_HERE, "runs")
 
 
 def main():
@@ -51,14 +53,14 @@ def main():
         patience=20,
         freeze=10,        # freeze first 10 backbone layers; train neck + head
         optimizer="auto", # ultralytics picks AdamW for fine-tuning
-        project="runs/causeway_vehicle",
+        project=os.path.join(RUNS_DIR, "causeway_vehicle"),
         name="v1",
         exist_ok=True,
     )
 
     # --- Stage 3: Copy best weights ---
     print("\n=== Stage 3: Saving best weights ===")
-    best_pt = os.path.join("runs", "causeway_vehicle", "v1", "weights", "best.pt")
+    best_pt = os.path.join(RUNS_DIR, "causeway_vehicle", "v1", "weights", "best.pt")
     if not os.path.exists(best_pt):
         print(f"ERROR: Expected best weights at {best_pt} but file not found.")
         return
@@ -70,8 +72,8 @@ def main():
     # --- Stage 4: Convert to MLX ---
     print("\n=== Stage 4: Converting to MLX format ===")
     try:
-        from yolo26mlx.converters import convert_model
-        convert_model(OUT_PT, output_path=OUT_NPZ, verify=True)
+        from yolo26mlx.converters.convert import convert_yolo26_weights
+        convert_yolo26_weights(OUT_PT, output_path=OUT_NPZ)
         print(f"Saved: {OUT_NPZ}")
     except ImportError:
         print("WARNING: yolo26mlx not installed — skipping MLX conversion.")
