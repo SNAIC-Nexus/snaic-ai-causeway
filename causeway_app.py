@@ -12,8 +12,15 @@ from causeway.config import (
     IMAGE_BASE_DIR, LANE_LABELS_DIR, VEHICLE_LABELS_DIR, CAMERA_CONFIG_PATH
 )
 from causeway.db import (
-    init_db, get_connection, update_label_validation,
+    init_db, get_connection, update_label_validation, ensure_label_log_entry,
     get_recent_scrape_logs, get_dataset_split_summary, get_label_logs
+)
+from PIL import Image as PILImage
+from streamlit_drawable_canvas import st_canvas
+from causeway.annotation_helpers import (
+    yolo_to_boxes, boxes_to_yolo_lines, canvas_rect_to_box,
+    render_annotated_image, list_annotation_dates, list_images_for_annotation,
+    CLASS_NAMES, CLASS_COLOURS, DISPLAY_W, DISPLAY_H,
 )
 
 def _parse_hour_from_path(img_path: str):
@@ -26,7 +33,7 @@ init_db()
 st.title("🚦 Causeway Pipeline Validator")
 st.caption("Human validation tool for lane segmentation and vehicle detection labels.")
 
-tab1, tab2 = st.tabs(["📋 Label Review", "📊 Pipeline Health"])
+tab1, tab2, tab3 = st.tabs(["📋 Label Review", "📊 Pipeline Health", "✏️ Annotate"])
 
 
 def _render_lane_annotation(img_path: str, label_path: str):
@@ -243,3 +250,188 @@ with tab2:
         st.dataframe(df, use_container_width=True)
     else:
         st.info("No dataset splits recorded yet. Run the build_dataset_split Dagster asset first.")
+
+with tab3:
+    st.header("Manual Annotation")
+    st.info(
+        "Draw bounding boxes directly on camera images. "
+        "Select a camera and date, pick a vehicle class, then drag to draw a box on the canvas. "
+        "Use the box list below to change classes or delete boxes. Save writes the labels and marks the image approved."
+    )
+
+    # --- Sidebar controls (scoped to this tab via key prefix) ---
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("✏️ Annotate Controls")
+        ann_camera = st.selectbox("Camera", ["2701", "2702", "2704"], key="ann_camera")
+        ann_dates = list_annotation_dates(ann_camera, base_dir=IMAGE_BASE_DIR)
+        if not ann_dates:
+            st.warning("No images found for this camera.")
+            st.stop()
+        ann_date = st.selectbox("Date", ann_dates, key="ann_date")
+
+    ann_images = list_images_for_annotation(ann_camera, ann_date, base_dir=IMAGE_BASE_DIR)
+    if not ann_images:
+        st.info("No images found for the selected camera and date.")
+        st.stop()
+
+    # --- Image navigator ---
+    if "ann_img_idx" not in st.session_state:
+        st.session_state["ann_img_idx"] = 0
+    st.session_state["ann_img_idx"] = min(st.session_state["ann_img_idx"], len(ann_images) - 1)
+
+    nav_prev, nav_sel, nav_next = st.columns([1, 10, 1])
+    with nav_prev:
+        if st.button("◀", key="ann_prev") and st.session_state["ann_img_idx"] > 0:
+            st.session_state["ann_img_idx"] -= 1
+            st.rerun()
+    with nav_sel:
+        chosen_idx = st.selectbox(
+            "Image",
+            range(len(ann_images)),
+            format_func=lambda i: os.path.basename(ann_images[i]),
+            index=st.session_state["ann_img_idx"],
+            key="ann_img_sel",
+            label_visibility="collapsed",
+        )
+        if chosen_idx != st.session_state["ann_img_idx"]:
+            st.session_state["ann_img_idx"] = chosen_idx
+            st.rerun()
+    with nav_next:
+        if st.button("▶", key="ann_next") and st.session_state["ann_img_idx"] < len(ann_images) - 1:
+            st.session_state["ann_img_idx"] += 1
+            st.rerun()
+
+    ann_img_path = ann_images[st.session_state["ann_img_idx"]]
+
+    if not os.path.exists(ann_img_path):
+        st.warning(f"Image file missing: `{ann_img_path}` — skipping.")
+        if st.session_state["ann_img_idx"] < len(ann_images) - 1:
+            st.session_state["ann_img_idx"] += 1
+            st.rerun()
+        st.stop()
+
+    # --- Load boxes and image dims into session state ---
+    boxes_key = f"ann_boxes_{ann_img_path}"
+    dims_key = f"ann_orig_dims_{ann_img_path}"
+    canvas_v_key = f"ann_canvas_v_{ann_img_path}"
+
+    if boxes_key not in st.session_state:
+        raw = cv2.imread(ann_img_path)
+        orig_h, orig_w = raw.shape[:2] if raw is not None else (480, 640)
+        label_path = _get_label_path(ann_img_path, "vehicle")
+        st.session_state[boxes_key] = yolo_to_boxes(label_path, orig_w, orig_h)
+        st.session_state[dims_key] = (orig_w, orig_h)
+        st.session_state[canvas_v_key] = 0
+
+    orig_w, orig_h = st.session_state[dims_key]
+    boxes = st.session_state[boxes_key]
+    canvas_version = st.session_state[canvas_v_key]
+
+    # --- Main layout: preview left, canvas + controls right ---
+    col_preview, col_canvas_ctrl = st.columns(2)
+
+    with col_preview:
+        st.caption("📷 Current annotations")
+        preview = render_annotated_image(ann_img_path, boxes, orig_w, orig_h)
+        st.image(preview, use_container_width=True)
+
+    with col_canvas_ctrl:
+        st.caption("🖊 Draw new box (drag a rectangle)")
+
+        cls_names_ordered = [CLASS_NAMES[i] for i in range(4)]
+        selected_cls_name = st.radio(
+            "Vehicle class",
+            cls_names_ordered,
+            horizontal=True,
+            key="ann_class",
+        )
+        selected_cls_id = cls_names_ordered.index(selected_cls_name)
+        stroke_colour = CLASS_COLOURS[selected_cls_id]["stroke"]
+
+        pil_bg = PILImage.open(ann_img_path).resize((DISPLAY_W, DISPLAY_H))
+
+        canvas_result = st_canvas(
+            fill_color="rgba(0,0,0,0)",
+            stroke_width=2,
+            stroke_color=stroke_colour,
+            background_image=pil_bg,
+            height=DISPLAY_H,
+            width=DISPLAY_W,
+            drawing_mode="rect",
+            key=f"canvas_{ann_img_path}_{canvas_version}",
+        )
+
+        # Detect newly drawn box
+        if (
+            canvas_result.json_data is not None
+            and canvas_result.json_data.get("objects")
+        ):
+            canvas_objects = canvas_result.json_data["objects"]
+            if len(canvas_objects) > 0:
+                # The canvas was just used — take the last rect as the new box
+                new_rect = canvas_objects[-1]
+                new_box = canvas_rect_to_box(new_rect, selected_cls_id, orig_w, orig_h)
+                boxes.append(new_box)
+                st.session_state[boxes_key] = boxes
+                # Reset canvas for next draw
+                st.session_state[canvas_v_key] = canvas_version + 1
+                st.rerun()
+
+    # --- Box list for class editing and deletion ---
+    st.subheader(f"Boxes ({len(boxes)})")
+    if not boxes:
+        st.caption("No boxes yet — draw on the canvas above.")
+    else:
+        for i, box in enumerate(list(boxes)):
+            bc1, bc2, bc3 = st.columns([3, 6, 1])
+            with bc1:
+                new_cls_name = st.selectbox(
+                    f"box_{i}",
+                    cls_names_ordered,
+                    index=box["class_id"],
+                    key=f"ann_cls_{ann_img_path}_{i}",
+                    label_visibility="collapsed",
+                )
+                new_cls_id = cls_names_ordered.index(new_cls_name)
+                if new_cls_id != box["class_id"]:
+                    boxes[i]["class_id"] = new_cls_id
+                    st.session_state[boxes_key] = boxes
+                    st.session_state[canvas_v_key] += 1
+                    st.rerun()
+            with bc2:
+                st.caption(
+                    f"x:[{box['x1_n']:.2f}–{box['x2_n']:.2f}]  "
+                    f"y:[{box['y1_n']:.2f}–{box['y2_n']:.2f}]"
+                )
+            with bc3:
+                if st.button("×", key=f"ann_del_{ann_img_path}_{i}"):
+                    boxes.pop(i)
+                    st.session_state[boxes_key] = boxes
+                    st.session_state[canvas_v_key] += 1
+                    st.rerun()
+
+    # --- Action buttons ---
+    st.divider()
+    act_clear, act_save = st.columns([1, 3])
+    with act_clear:
+        if st.button("🗑 Clear all", key="ann_clear"):
+            st.session_state[boxes_key] = []
+            st.session_state[canvas_v_key] += 1
+            st.rerun()
+    with act_save:
+        if st.button("💾 Save & next", type="primary", key="ann_save"):
+            label_path = _get_label_path(ann_img_path, "vehicle")
+            os.makedirs(os.path.dirname(label_path), exist_ok=True)
+            with open(label_path, "w") as f:
+                f.write("\n".join(boxes_to_yolo_lines(boxes)))
+            ensure_label_log_entry(ann_img_path, label_path, "vehicle", "")
+            update_label_validation(ann_img_path, "vehicle", "approved")
+            # Clear session state for this image
+            for k in [boxes_key, dims_key, canvas_v_key]:
+                st.session_state.pop(k, None)
+            # Advance to next image
+            if st.session_state["ann_img_idx"] < len(ann_images) - 1:
+                st.session_state["ann_img_idx"] += 1
+            st.success("Saved and marked approved.")
+            st.rerun()
