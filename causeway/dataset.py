@@ -70,3 +70,73 @@ def build_dataset_split(base_images_dir: str = IMAGE_BASE_DIR) -> dict:
         "vehicle_train": len(vehicle_train),
         "vehicle_val": len(vehicle_val),
     }
+
+
+def export_curated_dataset(output_dir: str) -> dict:
+    """Copy approved vehicle labels + images into a standard ultralytics layout.
+
+    Directory layout written to output_dir:
+        images/train/<filename>.jpg
+        images/val/<filename>.jpg
+        labels/train/<filename>.txt
+        labels/val/<filename>.txt
+
+    Returns {"train": int, "val": int, "yaml_path": str}.
+    """
+    import shutil
+    import re
+    from causeway.db import get_label_logs
+
+    rows = get_label_logs(label_type="vehicle", validated="approved")
+    if not rows:
+        print("No approved vehicle labels found. Review labels in the Streamlit app first.")
+        return {"train": 0, "val": 0, "yaml_path": ""}
+
+    # Group image paths by date (YYYYMMDD extracted from path)
+    def _day(img_path):
+        m = re.search(r"[/\\](\d{8})[/\\]", img_path)
+        return m.group(1) if m else "00000000"
+
+    by_day = {}
+    for img_path, label_path, *_ in rows:
+        day = _day(img_path)
+        by_day.setdefault(day, []).append((img_path, label_path))
+
+    sorted_days = sorted(by_day.keys())
+    if len(sorted_days) < 2:
+        train_days, val_days = sorted_days, []
+    else:
+        train_days = sorted_days[:-1]
+        val_days = [sorted_days[-1]]
+
+    train_pairs = [pair for d in train_days for pair in by_day[d]]
+    val_pairs   = [pair for d in val_days   for pair in by_day[d]]
+
+    def _copy_pairs(pairs, split):
+        img_out = os.path.join(output_dir, "images", split)
+        lbl_out = os.path.join(output_dir, "labels", split)
+        os.makedirs(img_out, exist_ok=True)
+        os.makedirs(lbl_out, exist_ok=True)
+        for img_path, label_path in pairs:
+            if os.path.exists(img_path) and os.path.exists(label_path):
+                shutil.copy2(img_path, os.path.join(img_out, os.path.basename(img_path)))
+                shutil.copy2(label_path, os.path.join(lbl_out, os.path.basename(label_path)))
+
+    _copy_pairs(train_pairs, "train")
+    _copy_pairs(val_pairs, "val")
+
+    yaml_path = "dataset_vehicle_curated.yaml"
+    yaml_abs_path = os.path.abspath(yaml_path)
+    data = {
+        "path": os.path.abspath(output_dir),
+        "train": "images/train",
+        "val": "images/val",
+        "nc": 4,
+        "names": {0: "motorcycle", 1: "car", 2: "bus", 3: "truck"},
+    }
+    with open(yaml_path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False)
+
+    print(f"Curated export: train={len(train_pairs)}, val={len(val_pairs)} → {output_dir}")
+    print(f"Written: {yaml_path}")
+    return {"train": len(train_pairs), "val": len(val_pairs), "yaml_path": yaml_abs_path}
