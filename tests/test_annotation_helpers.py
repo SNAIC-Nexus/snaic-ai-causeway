@@ -1,5 +1,3 @@
-import os
-import sqlite3
 import pytest
 from causeway.db import init_db, ensure_label_log_entry, get_label_logs
 

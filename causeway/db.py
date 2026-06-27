@@ -1,7 +1,6 @@
 # causeway/db.py
 import sqlite3
 from datetime import datetime
-from typing import Optional
 from causeway.config import DB_PATH
 
 
@@ -43,7 +42,7 @@ def init_db() -> None:
         conn.commit()
 
 
-def log_scrape(scraped_at: str, camera_id: str, file_path: Optional[str], status: str, error_msg=None) -> None:
+def log_scrape(scraped_at: str, camera_id: str, file_path: str | None, status: str, error_msg=None) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO scrape_log (scraped_at, camera_id, file_path, status, error_msg) VALUES (?,?,?,?,?)",
@@ -52,7 +51,7 @@ def log_scrape(scraped_at: str, camera_id: str, file_path: Optional[str], status
         conn.commit()
 
 
-def get_last_scrape_timestamp(camera_id=None) -> Optional[str]:
+def get_last_scrape_timestamp(camera_id=None) -> str | None:
     with get_connection() as conn:
         if camera_id:
             row = conn.execute(
