@@ -40,6 +40,18 @@ IMG_H = 1080
 # COCO class → project class for vehicle detection
 COCO_TO_VEHICLE_CLASS = {2: 1, 3: 0, 5: 2, 7: 3}  # car→1, motorcycle→0, bus→2, truck→3
 
+# Lazy-import shim: assigned at module level so tests can monkeypatch
+YOLO = None
+RTDETR = None
+
+
+def _load_models():
+    global YOLO, RTDETR
+    if YOLO is None:
+        from ultralytics import YOLO as _YOLO, RTDETR as _RTDETR
+        YOLO = _YOLO
+        RTDETR = _RTDETR
+
 
 def _parse_hour(filename: str) -> int:
     base = os.path.basename(filename)
@@ -120,7 +132,7 @@ def generate_lane_labels(base_images_dir: str = IMAGE_BASE_DIR) -> int:
 
 def generate_vehicle_labels(
     base_images_dir: str = IMAGE_BASE_DIR,
-    model_path: str = "yolov8x.pt",
+    model_path: str = "rtdetr-x.pt",
 ) -> int:
     init_db()
 
@@ -131,8 +143,8 @@ def generate_vehicle_labels(
         print("Vehicle labeling complete: 0 new labels generated.")
         return 0
 
-    from ultralytics import YOLO
-    model = YOLO(model_path)
+    _load_models()
+    model = RTDETR(model_path) if model_path.startswith("rtdetr") else YOLO(model_path)
 
     for img_path in image_paths:
         rel_path = os.path.relpath(img_path, base_images_dir)

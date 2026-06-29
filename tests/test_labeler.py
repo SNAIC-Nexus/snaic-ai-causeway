@@ -110,3 +110,82 @@ def test_generate_lane_labels_skips_already_labeled(tmp_path, monkeypatch):
 
     count = generate_lane_labels(base_images_dir=str(base_img_dir))
     assert count == 0
+
+
+def test_generate_vehicle_labels_uses_rtdetr_for_rtdetr_path(tmp_path, monkeypatch):
+    """When model_path starts with 'rtdetr', RTDETR is instantiated, not YOLO."""
+    import causeway.labeler as labeler_mod
+    from causeway import db as db_mod
+
+    test_db = str(tmp_path / "test.db")
+    monkeypatch.setattr(db_mod, "DB_PATH", test_db)
+    db_mod.init_db()
+
+    # Create one fake image so the model branch is reached
+    cam_dir = tmp_path / "traffic_images" / "20260625" / "2701"
+    cam_dir.mkdir(parents=True)
+    img_path = cam_dir / "fake_2701_20260625_080000.jpg"
+    img_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 100)
+
+    calls = []
+
+    class FakeModel:
+        def __init__(self, path):
+            calls.append(("init", path))
+        def predict(self, **kwargs):
+            class FakeResult:
+                boxes = []
+            return [FakeResult()]
+
+    monkeypatch.setattr(labeler_mod, "YOLO", FakeModel)
+    monkeypatch.setattr(labeler_mod, "RTDETR", FakeModel)
+
+    labeler_mod.generate_vehicle_labels(
+        base_images_dir=str(tmp_path / "traffic_images"),
+        model_path="rtdetr-x.pt",
+    )
+    assert calls[0] == ("init", "rtdetr-x.pt")
+
+
+def test_generate_vehicle_labels_uses_yolo_for_yolo_path(tmp_path, monkeypatch):
+    """When model_path does NOT start with 'rtdetr', YOLO is instantiated."""
+    import causeway.labeler as labeler_mod
+    from causeway import db as db_mod
+
+    test_db = str(tmp_path / "test.db")
+    monkeypatch.setattr(db_mod, "DB_PATH", test_db)
+    db_mod.init_db()
+
+    cam_dir = tmp_path / "traffic_images" / "20260625" / "2701"
+    cam_dir.mkdir(parents=True)
+    img_path = cam_dir / "fake_2701_20260625_080000.jpg"
+    img_path.write_bytes(b"\xff\xd8\xff" + b"\x00" * 100)
+
+    yolo_calls = []
+    rtdetr_calls = []
+
+    class FakeYOLO:
+        def __init__(self, path):
+            yolo_calls.append(path)
+        def predict(self, **kwargs):
+            class R:
+                boxes = []
+            return [R()]
+
+    class FakeRTDETR:
+        def __init__(self, path):
+            rtdetr_calls.append(path)
+        def predict(self, **kwargs):
+            class R:
+                boxes = []
+            return [R()]
+
+    monkeypatch.setattr(labeler_mod, "YOLO", FakeYOLO)
+    monkeypatch.setattr(labeler_mod, "RTDETR", FakeRTDETR)
+
+    labeler_mod.generate_vehicle_labels(
+        base_images_dir=str(tmp_path / "traffic_images"),
+        model_path="yolov8x.pt",
+    )
+    assert len(yolo_calls) == 1
+    assert len(rtdetr_calls) == 0
