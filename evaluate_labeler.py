@@ -44,6 +44,7 @@ def get_sample_images(
                 approved_by_camera.setdefault(cam, []).append(img_path)
 
     result: dict[str, list[str]] = {}
+    random.seed(42)
     for cam in cameras:
         candidates = approved_by_camera.get(cam, [])
         if len(candidates) < n:
@@ -56,7 +57,6 @@ def get_sample_images(
                 if p not in seen:
                     candidates.append(p)
                     seen.add(p)
-        random.seed(42)
         result[cam] = random.sample(candidates, min(n, len(candidates)))
     return result
 
@@ -146,7 +146,7 @@ def main():
     parser = argparse.ArgumentParser(description="Compare YOLOv8x vs RT-DETR-X on traffic images.")
     parser.add_argument("--n", type=int, default=5, help="Images per camera (default: 5)")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold (default: 0.25)")
-    parser.add_argument("--cameras", default="2701,2702,2704", help="Comma-separated camera IDs")
+    parser.add_argument("--cameras", default=",".join(TARGET_CAMERAS), help="Comma-separated camera IDs")
     parser.add_argument("--out", default="eval_output", help="Output directory (default: eval_output)")
     args = parser.parse_args()
     cameras = [c.strip() for c in args.cameras.split(",")]
