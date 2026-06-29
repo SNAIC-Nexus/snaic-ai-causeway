@@ -27,7 +27,7 @@ def generate_lane_labels():
     return {"new_labels": count}
 
 
-@asset(deps=[scrape_images], description="Generate YOLO detection labels for vehicles using YOLOv8x inference on MPS.")
+@asset(deps=[scrape_images], description="Generate YOLO detection labels for vehicles using RT-DETR-X inference on MPS.")
 def generate_vehicle_labels():
     from causeway.labeler import generate_vehicle_labels as _gen
     count = _gen()
@@ -60,6 +60,7 @@ def build_dataset_split():
     return _split()
 
 
+
 scrape_job = define_asset_job(
     "scrape_job",
     selection=AssetSelection.assets(scrape_images),
@@ -81,5 +82,5 @@ defs = Definitions(
         fine_tune_vehicle_model,
         build_dataset_split,
     ],
-    schedules=[scrape_schedule],
+schedules=[scrape_schedule],
 )
