@@ -60,7 +60,6 @@ def build_dataset_split():
     return _split()
 
 
-
 scrape_job = define_asset_job(
     "scrape_job",
     selection=AssetSelection.assets(scrape_images),
@@ -82,5 +81,5 @@ defs = Definitions(
         fine_tune_vehicle_model,
         build_dataset_split,
     ],
-schedules=[scrape_schedule],
+    schedules=[scrape_schedule],
 )
