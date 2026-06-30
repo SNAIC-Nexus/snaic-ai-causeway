@@ -138,7 +138,7 @@ else:
 
 # ── Actions ────────────────────────────────────────────────────────────────────
 if save_next or save_only:
-    _save(img_path, result, img_w, img_h)
+    _save(img_path, result or [], img_w, img_h)
     st.success("Saved ✓")
     if save_next and idx < n - 1:
         st.session_state["ann_idx"] = idx + 1
