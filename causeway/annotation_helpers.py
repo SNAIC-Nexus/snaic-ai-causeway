@@ -110,6 +110,48 @@ def canvas_rect_to_box(rect: dict, class_id: int, orig_w: int, orig_h: int,
     }
 
 
+def boxes_to_detection_args(
+    boxes: list[dict], img_w: int, img_h: int
+) -> tuple[list[list[int]], list[int]]:
+    """Convert normalised box dicts to pixel [x, y, w, h] lists for detection().
+
+    Returns (bboxes, labels) where bboxes[i] = [x, y, w, h] in pixels,
+    labels[i] = class_id (int).
+    """
+    bboxes = []
+    labels = []
+    for box in boxes:
+        x = int(round(box["x1_n"] * img_w))
+        y = int(round(box["y1_n"] * img_h))
+        w = int(round((box["x2_n"] - box["x1_n"]) * img_w))
+        h = int(round((box["y2_n"] - box["y1_n"]) * img_h))
+        bboxes.append([x, y, w, h])
+        labels.append(box["class_id"])
+    return bboxes, labels
+
+
+def detection_result_to_boxes(
+    result: list[dict], img_w: int, img_h: int
+) -> list[dict]:
+    """Convert detection() output to normalised box dicts.
+
+    result[i] has keys: bbox ([x, y, w, h] pixels), label_id (int).
+    Returns list of {"class_id": int, "x1_n": float, "y1_n": float,
+                      "x2_n": float, "y2_n": float}.
+    """
+    boxes = []
+    for item in result:
+        x, y, w, h = item["bbox"]
+        boxes.append({
+            "class_id": item["label_id"],
+            "x1_n": max(0.0, min(1.0, x / img_w)),
+            "y1_n": max(0.0, min(1.0, y / img_h)),
+            "x2_n": max(0.0, min(1.0, (x + w) / img_w)),
+            "y2_n": max(0.0, min(1.0, (y + h) / img_h)),
+        })
+    return boxes
+
+
 def render_annotated_image(img_path: str, boxes: list[dict], orig_w: int, orig_h: int,
                             display_w: int = DISPLAY_W, display_h: int = DISPLAY_H) -> np.ndarray:
     """Render boxes onto the image, resized to display dimensions.

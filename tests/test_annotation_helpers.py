@@ -4,6 +4,7 @@ from causeway.db import init_db, ensure_label_log_entry, get_label_logs
 from causeway.annotation_helpers import (
     yolo_to_boxes, boxes_to_yolo_lines, canvas_rect_to_box,
     render_annotated_image, list_annotation_dates, list_images_for_annotation,
+    boxes_to_detection_args, detection_result_to_boxes,
     CLASS_NAMES, CLASS_COLOURS, DISPLAY_W, DISPLAY_H, _CV_COLOURS,
 )
 
@@ -171,3 +172,47 @@ def test_list_images_for_annotation_returns_sorted_jpgs(tmp_path):
 def test_list_images_for_annotation_empty_when_no_match(tmp_path):
     imgs = list_images_for_annotation("2701", "20260627", base_dir=str(tmp_path))
     assert imgs == []
+
+
+def test_boxes_to_detection_args_converts_to_pixels():
+    boxes = [{"class_id": 1, "x1_n": 0.1, "y1_n": 0.2, "x2_n": 0.5, "y2_n": 0.6}]
+    bboxes, labels = boxes_to_detection_args(boxes, img_w=640, img_h=480)
+    assert labels == [1]
+    assert bboxes == [[64, 96, 256, 192]]  # x=0.1*640, y=0.2*480, w=0.4*640, h=0.4*480
+
+
+def test_boxes_to_detection_args_empty():
+    bboxes, labels = boxes_to_detection_args([], img_w=640, img_h=480)
+    assert bboxes == []
+    assert labels == []
+
+
+def test_detection_result_to_boxes_converts_to_normalised():
+    result = [{"bbox": [64, 96, 256, 192], "label_id": 1, "label": "Car"}]
+    boxes = detection_result_to_boxes(result, img_w=640, img_h=480)
+    assert len(boxes) == 1
+    b = boxes[0]
+    assert b["class_id"] == 1
+    assert abs(b["x1_n"] - 0.1) < 1e-6
+    assert abs(b["y1_n"] - 0.2) < 1e-6
+    assert abs(b["x2_n"] - 0.5) < 1e-6
+    assert abs(b["y2_n"] - 0.6) < 1e-6
+
+
+def test_detection_result_to_boxes_empty():
+    boxes = detection_result_to_boxes([], img_w=640, img_h=480)
+    assert boxes == []
+
+
+def test_roundtrip_normalised_to_pixel_and_back():
+    original = [{"class_id": 3, "x1_n": 0.25, "y1_n": 0.1, "x2_n": 0.75, "y2_n": 0.9}]
+    bboxes, labels = boxes_to_detection_args(original, img_w=640, img_h=480)
+    result = [{"bbox": bboxes[0], "label_id": labels[0], "label": "Truck"}]
+    recovered = detection_result_to_boxes(result, img_w=640, img_h=480)
+    assert len(recovered) == 1
+    b = recovered[0]
+    assert b["class_id"] == 3
+    assert abs(b["x1_n"] - 0.25) < 1e-3
+    assert abs(b["y1_n"] - 0.1) < 1e-3
+    assert abs(b["x2_n"] - 0.75) < 1e-3
+    assert abs(b["y2_n"] - 0.9) < 1e-3
