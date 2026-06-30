@@ -138,14 +138,14 @@ else:
 
 # ── Actions ────────────────────────────────────────────────────────────────────
 if save_next or save_only:
-    if result is None:
-        result = []
     _save(img_path, result, img_w, img_h)
     st.success("Saved ✓")
     if save_next and idx < n - 1:
         st.session_state["ann_idx"] = idx + 1
         _clear_canvas_key()
         st.rerun()
+    elif save_next:
+        st.info("Last image — already at the end.")
 
 if skip:
     if idx < n - 1:
