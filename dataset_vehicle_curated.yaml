@@ -1,0 +1,10 @@
+names:
+  0: motorcycle
+  1: car
+  2: bus
+  3: truck
+  4: train
+nc: 5
+path: /Users/chuan/Development/PythonProjects/snaic-ai-causeway/dataset/curated
+train: images/train
+val: images/val
