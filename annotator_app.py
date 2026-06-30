@@ -21,6 +21,10 @@ LABEL_LIST = [CLASS_NAMES[i] for i in sorted(CLASS_NAMES)]  # ["Motorcycle","Car
 CANVAS_W = 800
 CANVAS_H = 600
 
+# JS patch note: .venv/.../streamlit_image_annotation/Detection/frontend/build/static/js/main.f3db844f.js
+# patched to add Option+D (event.key==="d" && event.altKey) delete handler for selected box.
+# Re-apply if venv is recreated.
+
 
 def _label_path(img_path: str) -> str:
     """Derive YOLO .txt path from image path."""
@@ -95,10 +99,12 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
+    zoom = st.slider("🔍 Zoom", min_value=0.5, max_value=2.0, value=1.0, step=0.25)
+
     st.caption("**Controls**")
     st.caption("• Drag on image to draw a box")
     st.caption("• Click a box label to change class")
-    st.caption("• Right-click a box to delete it")
+    st.caption("• Click box to select, then Option+D to delete")
 
     st.divider()
     save_next = st.button("💾 Save & Next", use_container_width=True, type="primary")
@@ -121,9 +127,10 @@ result = detection(
     label_list=LABEL_LIST,
     bboxes=init_bboxes if init_bboxes else [],
     labels=init_labels if init_labels else [],
-    height=CANVAS_H,
-    width=CANVAS_W,
-    key=f"det_{img_path}_{canvas_ver}",
+    height=int(CANVAS_H * zoom),
+    width=int(CANVAS_W * zoom),
+    line_width=2,
+    key=f"det_{img_path}_{canvas_ver}_{zoom}",
 )
 
 # Show per-class box count below canvas
