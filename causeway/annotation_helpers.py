@@ -6,21 +6,23 @@ import numpy as np
 DISPLAY_W = 640
 DISPLAY_H = 480
 
-CLASS_NAMES = {0: "Motorcycle", 1: "Car", 2: "Bus", 3: "Truck"}
+CLASS_NAMES = {0: "Motorcycle", 1: "Car", 2: "Bus", 3: "Truck", 4: "Train"}
 
 CLASS_COLOURS = {
     0: {"stroke": "#0000FF", "fill": "rgba(0,0,255,0.3)"},
     1: {"stroke": "#FFFF00", "fill": "rgba(255,255,0,0.3)"},
     2: {"stroke": "#00FF00", "fill": "rgba(0,255,0,0.3)"},
     3: {"stroke": "#00FFFF", "fill": "rgba(0,255,255,0.3)"},
+    4: {"stroke": "#8B4513", "fill": "rgba(139,69,19,0.3)"},
 }
 
 # BGR equivalents for OpenCV drawing (matches CLASS_COLOURS above)
 _CV_COLOURS = {
-    0: (255, 0, 0),    # Blue (BGR)
-    1: (0, 255, 255),  # Yellow (BGR)
-    2: (0, 255, 0),    # Green (BGR)
-    3: (255, 255, 0),  # Cyan (BGR)
+    0: (255, 0, 0),      # Blue (BGR)
+    1: (0, 255, 255),    # Yellow (BGR)
+    2: (0, 255, 0),      # Green (BGR)
+    3: (255, 255, 0),    # Cyan (BGR)
+    4: (19, 69, 139),    # Brown (BGR)
 }
 
 
