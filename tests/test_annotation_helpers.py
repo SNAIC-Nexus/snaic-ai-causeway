@@ -4,7 +4,7 @@ from causeway.db import init_db, ensure_label_log_entry, get_label_logs
 from causeway.annotation_helpers import (
     yolo_to_boxes, boxes_to_yolo_lines, canvas_rect_to_box,
     render_annotated_image, list_annotation_dates, list_images_for_annotation,
-    CLASS_NAMES, CLASS_COLOURS, DISPLAY_W, DISPLAY_H,
+    CLASS_NAMES, CLASS_COLOURS, DISPLAY_W, DISPLAY_H, _CV_COLOURS,
 )
 
 
@@ -45,10 +45,14 @@ def test_class_names_and_colours():
     assert CLASS_NAMES[1] == "Car"
     assert CLASS_NAMES[2] == "Bus"
     assert CLASS_NAMES[3] == "Truck"
+    assert CLASS_NAMES[4] == "Train"
     assert CLASS_COLOURS[0]["stroke"] == "#0000FF"
     assert CLASS_COLOURS[1]["stroke"] == "#FFFF00"
     assert CLASS_COLOURS[2]["stroke"] == "#00FF00"
     assert CLASS_COLOURS[3]["stroke"] == "#00FFFF"
+    assert CLASS_COLOURS[4]["stroke"] == "#8B4513"
+    assert CLASS_COLOURS[4]["fill"] == "rgba(139,69,19,0.3)"
+    assert _CV_COLOURS[4] == (19, 69, 139)
 
 
 def test_yolo_to_boxes_empty_when_no_file(tmp_path):
